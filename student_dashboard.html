@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Student Performance Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Caveat:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+<style>
+/* Layout: a teacher's marking desk. Ink-blue on cool paper, a red pen for failing marks and notes,
+   a highlighter for the selected student. Hero = the attendance finding + one student's report card. */
+:root {
+  --paper: #F2F5FA;
+  --card: #FFFFFF;
+  --ink: #1B2A47;
+  --ink-2: #5B6A88;
+  --rule: #D3DCEA;
+  --rule-soft: #E6EBF3;
+  --red: #C8243A;
+  --hl: #FFE36E;
+  --math: #2E5BD0;
+  --sci: #12907A;
+  --eng: #B0660E;
+  --heat-pos: #2E5BD0;
+  --heat-neg: #C8243A;
+  --heat-zero: #F2F5FA;
+
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-pen: "Caveat", "Segoe Print", "Bradley Hand", cursive;
+
+  --gap: 20px;
+  --radius: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1626; --card: #152038; --ink: #E5EBF6; --ink-2: #9AA8C4;
+    --rule: #2A3956; --rule-soft: #1F2C46; --red: #FF6B7D; --hl: #6A5714;
+    --math: #7FA2FF; --sci: #45CFA6; --eng: #F0B44A;
+    --heat-pos: #7FA2FF; --heat-neg: #FF6B7D; --heat-zero: #152038;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1626; --card: #152038; --ink: #E5EBF6; --ink-2: #9AA8C4;
+  --rule: #2A3956; --rule-soft: #1F2C46; --red: #FF6B7D; --hl: #6A5714;
+  --math: #7FA2FF; --sci: #45CFA6; --eng: #F0B44A;
+  --heat-pos: #7FA2FF; --heat-neg: #FF6B7D; --heat-zero: #152038;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.55;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--math); outline-offset: 2px; border-radius: 4px; }
+
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+
+/* Header */
+.masthead { padding-block: 36px 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 32px; }
+.masthead h1 {
+  font-family: var(--f-display); font-weight: 800; font-size: clamp(2rem, 4.6vw, 3.2rem);
+  line-height: 1.02; letter-spacing: -0.02em; text-wrap: balance;
+}
+.masthead p { color: var(--ink-2); max-width: 58ch; margin-top: 8px; }
+.masthead .by { font-size: 0.9rem; color: var(--ink-2); text-align: right; }
+.masthead .by strong { color: var(--ink); display: block; font-size: 1rem; }
+
+/* Controls */
+.controls-band {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-block: 1px solid var(--rule);
+}
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; padding-block: 12px; }
+.ctrl { display: flex; align-items: center; gap: 10px; }
+.ctrl label { font-size: 0.9rem; color: var(--ink-2); white-space: nowrap; }
+.ctrl output { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3.2ch; }
+.ctrl input[type="range"] { width: 130px; accent-color: var(--ink); }
+.btn {
+  border: 1px solid var(--rule); background: var(--card); border-radius: 999px;
+  padding: 5px 14px; font-size: 0.88rem; cursor: pointer;
+}
+.btn:hover { border-color: var(--ink-2); }
+.controls .btn { margin-left: auto; }
+.band-note { font-size: 0.85rem; color: var(--ink-2); }
+
+/* Sections */
+main { display: grid; gap: 56px; padding-block: 32px 64px; }
+section > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 18px; }
+h2 { font-family: var(--f-display); font-weight: 700; font-size: 1.6rem; letter-spacing: -0.01em; line-height: 1.15; text-wrap: balance; }
+section > header p { color: var(--ink-2); max-width: 62ch; flex-basis: 100%; }
+.panel { background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); padding: 22px; min-width: 0; }
+.chart-box { position: relative; width: 100%; }
+.pen { font-family: var(--f-pen); color: var(--red); font-weight: 700; line-height: 1; }
+.muted { color: var(--ink-2); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
+.finding h2 { font-size: clamp(1.6rem, 3vw, 2.15rem); max-width: 22ch; }
+.finding-stat { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin: 10px 0 4px; }
+.r-value { font-family: var(--f-display); font-weight: 800; font-size: clamp(2.8rem, 6vw, 4.2rem); line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.r-value small { font-size: 0.45em; font-weight: 500; color: var(--ink-2); letter-spacing: 0; margin-right: 6px; }
+.r-note { font-size: 1.6rem; transform: rotate(-3deg); display: inline-block; }
+.finding p.lede { color: var(--ink-2); max-width: 58ch; margin-bottom: 14px; }
+#scatter-box { height: 360px; }
+
+/* Student card */
+.student { display: grid; gap: 18px; }
+.student-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.student-top label { font-size: 0.85rem; color: var(--ink-2); }
+.student-top select { border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); padding: 5px 8px; max-width: 60%; }
+.student-name { font-family: var(--f-display); font-weight: 800; font-size: 2.2rem; line-height: 1; letter-spacing: -0.02em; }
+.student-meta { color: var(--ink-2); margin-top: 6px; }
+.marks { display: grid; grid-template-columns: repeat(3, 1fr); border-block: 1px solid var(--rule); }
+.mark { padding: 14px 6px 12px; text-align: center; position: relative; }
+.mark + .mark { border-left: 1px dashed var(--rule); }
+.mark .subj { font-size: 0.85rem; color: var(--ink-2); display: flex; align-items: center; justify-content: center; gap: 6px; }
+.mark .subj i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.mark .val { font-family: var(--f-display); font-weight: 700; font-size: 2.2rem; line-height: 1.2; display: inline-block; padding: 0 8px; font-variant-numeric: tabular-nums; }
+.mark .val.fail { border: 2.5px solid var(--red); border-radius: 52% 46% 55% 44% / 50% 58% 42% 50%; transform: rotate(-5deg); color: var(--red); }
+.mark .tag { position: absolute; top: 6px; right: 8px; font-size: 1.7rem; transform: rotate(8deg); }
+.mark .filled { display: block; font-size: 1.05rem; margin-top: 2px; transform: rotate(-2deg); }
+.student-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.kv .k { font-size: 0.85rem; color: var(--ink-2); }
+.kv .v { font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.profile { color: var(--ink); }
+.buddy-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 14px; background: var(--paper); border-radius: 10px; }
+.link-btn { background: none; border: none; padding: 0; font-weight: 700; color: var(--math); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.hint { font-size: 0.85rem; color: var(--ink-2); }
+
+/* Odds */
+.odds { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--gap); }
+.odds-list { display: grid; gap: 22px; align-content: start; }
+.odd { display: grid; grid-template-columns: 5.6rem minmax(0, 1fr); gap: 4px 16px; align-items: center; }
+.odd .pct { font-family: var(--f-display); font-weight: 800; font-size: 2.1rem; line-height: 1; font-variant-numeric: tabular-nums; grid-row: span 3; align-self: start; }
+.odd .what { font-weight: 700; }
+.tally { display: flex; flex-wrap: wrap; gap: 4px; grid-column: 2; }
+.tally span { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--rule); }
+.tally span.on { background: var(--ink); border-color: var(--ink); }
+.tally span.sel { outline: 2px solid var(--red); outline-offset: 1px; }
+.odd .count { grid-column: 2; font-size: 0.85rem; color: var(--ink-2); }
+.conditional { border-top: 1px solid var(--rule); padding-top: 16px; color: var(--ink-2); }
+.conditional strong { color: var(--ink); }
+#prob-box { height: 320px; }
+
+/* Spread */
+.spread { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--gap); }
+#strip-box { height: 330px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; color: var(--ink-2); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .sw { width: 18px; height: 0; border-top: 2px dashed var(--red); }
+.legend .sw.a { border-top-color: var(--ink-2); }
+.legend .sw.mean { width: 3px; height: 14px; border: 0; background: var(--ink); }
+
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.stats th, .stats td { padding: 9px 8px; text-align: right; border-bottom: 1px solid var(--rule-soft); }
+.stats th:first-child, .stats td:first-child { text-align: left; }
+.stats thead th { font-size: 0.82rem; color: var(--ink-2); font-weight: 700; border-bottom: 1px solid var(--rule); }
+.stats tbody tr:last-child td { border-bottom: 0; font-weight: 700; }
+.stats .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.formula { margin-top: 16px; font-size: 0.9rem; color: var(--ink-2); }
+
+/* Buddies */
+.buddies { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--gap); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; background: var(--paper); }
+.seg button { border: 0; background: none; border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; cursor: pointer; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 0 0 1px var(--rule); }
+.heat-tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 14px; }
+.heat-wrap { position: relative; }
+#heat { display: block; width: 100%; cursor: crosshair; touch-action: manipulation; }
+.heat-tip {
+  position: absolute; pointer-events: none; background: var(--ink); color: var(--paper);
+  padding: 5px 9px; border-radius: 6px; font-size: 0.82rem; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px));
+}
+.heat-scale { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-2); margin-top: 10px; }
+.heat-scale .bar { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--heat-neg), var(--heat-zero), var(--heat-pos)); border: 1px solid var(--rule); }
+.heat-msg { margin-top: 12px; font-size: 0.9rem; }
+.pairs-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.pairs { list-style: none; counter-reset: p; display: grid; }
+.pairs li { counter-increment: p; }
+.pairs button {
+  width: 100%; display: grid; grid-template-columns: 2.2ch minmax(0, 1fr) 5.5ch; gap: 4px 10px; align-items: center;
+  text-align: left; background: none; border: 0; border-bottom: 1px solid var(--rule-soft); padding: 8px 4px; cursor: pointer;
+}
+.pairs button::before { content: counter(p); color: var(--ink-2); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.pairs button:hover { background: var(--paper); }
+.pairs button.on { background: var(--hl); }
+.pairs .names { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pairs .sim { text-align: right; font-variant-numeric: tabular-nums; }
+.pairs .meter { grid-column: 2 / 4; height: 4px; background: var(--rule-soft); border-radius: 2px; overflow: hidden; }
+.pairs .meter i { display: block; height: 100%; background: var(--ink); border-radius: 2px; }
+.pairs .weak .meter i { background: var(--red); }
+
+/* Roster */
+.roster-tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.roster-tools input { border: 1px solid var(--rule); background: var(--card); border-radius: 999px; padding: 6px 14px; width: 220px; max-width: 100%; }
+.table-scroll { overflow-x: auto; }
+.roster { min-width: 680px; }
+.roster th, .roster td { padding: 10px 12px; border-bottom: 1px solid var(--rule-soft); text-align: right; }
+.roster th:first-child, .roster td:first-child, .roster th:last-child, .roster td:last-child { text-align: left; }
+.roster thead th { border-bottom: 1px solid var(--rule); }
+.roster thead button { background: none; border: 0; font-size: 0.85rem; font-weight: 700; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.roster thead button[aria-sort] { color: var(--ink); }
+.roster tbody tr { cursor: pointer; }
+.roster tbody tr:hover { background: var(--paper); }
+.roster tbody tr.sel { background: var(--hl); }
+.roster td.name { font-weight: 700; }
+.cell-fail { color: var(--red); font-weight: 700; border: 2px solid var(--red); border-radius: 50% 44% 54% 46%; padding: 1px 5px; }
+.cell-a::after { content: "A"; font-family: var(--f-pen); color: var(--red); font-size: 1.2rem; margin-left: 4px; font-weight: 700; }
+.dagger { color: var(--red); font-weight: 700; margin-left: 2px; }
+.att-bar { display: inline-block; width: 46px; height: 6px; background: var(--rule-soft); border-radius: 3px; margin-right: 8px; vertical-align: middle; overflow: hidden; }
+.att-bar i { display: block; height: 100%; background: var(--ink-2); }
+.empty { padding: 28px; text-align: center; color: var(--ink-2); }
+
+footer { border-top: 1px solid var(--rule); padding-block: 22px 40px; color: var(--ink-2); font-size: 0.88rem; display: grid; gap: 6px; }
+
+@media (max-width: 980px) {
+  .hero, .odds, .spread, .buddies { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .panel { padding: 16px; }
+  .ctrl input[type="range"] { width: 100px; }
+  .controls .btn { margin-left: 0; }
+  #scatter-box { height: 300px; }
+  .masthead .by { text-align: left; }
+  .mark .val { font-size: 1.8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="masthead">
+    <div>
+      <h1>Student Performance Analyzer</h1>
+      <p>Marks and attendance for a class of 30, with pass and A-grade odds and study-buddy pairs matched by grade profile.</p>
+    </div>
+    <div class="by"><strong>G Anirudh</strong></div>
+  </header>
+</div>
+
+<div class="controls-band">
+  <div class="wrap controls" role="group" aria-label="Dashboard filters">
+    <div class="ctrl">
+      <label for="f-att">Attendance at least</label>
+      <input type="range" id="f-att" min="60" max="95" step="1" value="60">
+      <output id="o-att" for="f-att">60%</output>
+    </div>
+    <div class="ctrl">
+      <label for="f-pass">Pass mark</label>
+      <input type="range" id="f-pass" min="30" max="60" step="1" value="40">
+      <output id="o-pass" for="f-pass">40</output>
+    </div>
+    <div class="ctrl">
+      <label for="f-a">A grade from</label>
+      <input type="range" id="f-a" min="70" max="90" step="1" value="80">
+      <output id="o-a" for="f-a">80</output>
+    </div>
+    <span class="band-note" id="band-note">Showing all 30 students</span>
+    <button class="btn" id="reset" type="button">Reset filters</button>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <!-- Hero -->
+  <section class="hero" aria-label="Attendance and performance">
+    <div class="panel finding">
+      <h2 id="finding-title">Students who attend more score more</h2>
+      <div class="finding-stat">
+        <div class="r-value" id="r-value"><small>r =</small>0.92</div>
+        <span class="pen r-note" id="r-note">strong!</span>
+      </div>
+      <p class="lede" id="finding-lede"></p>
+      <div class="chart-box" id="scatter-box"><canvas id="scatter" aria-label="Scatter plot of attendance against overall average"></canvas></div>
+    </div>
+
+    <aside class="panel student" aria-label="Selected student">
+      <div class="student-top">
+        <label for="pick">Report card</label>
+        <select id="pick"></select>
+      </div>
+      <div>
+        <div class="student-name" id="s-name"></div>
+        <div class="student-meta" id="s-meta"></div>
+      </div>
+      <div class="marks" id="s-marks"></div>
+      <div class="student-summary">
+        <div class="kv"><div class="k">Overall average</div><div class="v" id="s-overall"></div></div>
+        <div class="kv"><div class="k">Class rank</div><div class="v" id="s-rank"></div></div>
+      </div>
+      <p class="profile" id="s-profile"></p>
+      <div class="buddy-line" id="s-buddy"></div>
+      <p class="hint">Click any dot, heatmap cell or table row to open that student's card.</p>
+    </aside>
+  </section>
+
+  <!-- Odds -->
+  <section aria-labelledby="odds-h">
+    <header>
+      <h2 id="odds-h">Pass and A-grade odds</h2>
+      <p>Each probability is the share of students who meet the condition. Move the pass mark or A-grade slider to see how the odds change.</p>
+    </header>
+    <div class="odds">
+      <div class="panel odds-list" id="odds-list"></div>
+      <div class="panel">
+        <div class="chart-box" id="prob-box"><canvas id="prob" aria-label="Bar chart of pass and A-grade probability per subject"></canvas></div>
+        <div class="legend" id="prob-legend"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Spread -->
+  <section aria-labelledby="spread-h">
+    <header>
+      <h2 id="spread-h">How marks spread in each subject</h2>
+      <p>Every dot is one student. The dark tick is the class mean; the dashed lines are the pass mark and the A-grade line.</p>
+    </header>
+    <div class="spread">
+      <div class="panel">
+        <div class="chart-box" id="strip-box"><canvas id="strip" aria-label="Strip plot of marks per subject"></canvas></div>
+        <div class="legend">
+          <span><i class="sw mean"></i>Class mean</span>
+          <span><i class="sw"></i>Pass mark</span>
+          <span><i class="sw a"></i>A grade</span>
+        </div>
+      </div>
+      <div class="panel">
+        <table class="stats" id="stats"></table>
+        <p class="formula">Std dev is the sample standard deviation, <em>s</em> = &radic;(&Sigma;(x &minus; x&#772;)&sup2; / (n &minus; 1)).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Buddies -->
+  <section aria-labelledby="buddy-h">
+    <header>
+      <h2 id="buddy-h">Study buddy matching</h2>
+      <p>Each student is a vector of three marks. Cosine similarity compares the direction of two vectors, so pairs with matching strengths and weaknesses score close to 1. Pairs are matched once for the whole class, so the filters don't change them.</p>
+    </header>
+    <div class="buddies">
+      <div class="panel">
+        <div class="heat-tools">
+          <div class="seg" role="group" aria-label="Vectors">
+            <button type="button" data-sim="z" aria-pressed="true">Standardised marks</button>
+            <button type="button" data-sim="raw" aria-pressed="false">Raw marks</button>
+          </div>
+          <div class="seg" role="group" aria-label="Order">
+            <button type="button" data-order="pairs" aria-pressed="true">Group by pair</button>
+            <button type="button" data-order="roster" aria-pressed="false">Roster order</button>
+          </div>
+        </div>
+        <div class="heat-wrap" id="heat-wrap">
+          <canvas id="heat" aria-label="Heatmap of cosine similarity between every pair of students"></canvas>
+          <div class="heat-tip" id="heat-tip" hidden></div>
+        </div>
+        <div class="heat-scale"><span>&minus;1 opposite</span><div class="bar"></div><span>+1 same profile</span></div>
+        <p class="heat-msg" id="heat-msg"></p>
+      </div>
+      <div class="panel">
+        <div class="pairs-head">
+          <strong>15 pairs, best match first</strong>
+          <span class="muted num" id="pair-avg"></span>
+        </div>
+        <ol class="pairs" id="pairs"></ol>
+        <p class="hint" style="margin-top:12px">Greedy matching locks in the most similar pair first, so the last pairs are made from whoever is left.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Roster -->
+  <section aria-labelledby="roster-h">
+    <header>
+      <h2 id="roster-h">Class roster</h2>
+      <div class="roster-tools">
+        <label for="q" class="muted">Find a student</label>
+        <input id="q" type="search" placeholder="Type a name" autocomplete="off">
+      </div>
+      <p>Marks below the pass mark are circled in red; A grades get a red <span class="pen" style="font-size:1.2rem">A</span>. <span class="dagger">&dagger;</span> marks a missing Math mark that was filled with the class mean.</p>
+    </header>
+    <div class="panel table-scroll">
+      <table class="roster" id="roster"></table>
+    </div>
+  </section>
+</main>
+
+<div class="wrap">
+  <footer>
+    <span>Data: student_data.csv, generated with np.random.seed(42) and random.seed(42). 30 students, 4 missing Math marks filled with the subject mean.</span>
+    <span>Probabilities are empirical shares of the students in the current attendance filter. Correlation is Pearson's r.</span>
+  </footer>
+</div>
+
+<script>
+// MODEL START
+const SUBJECTS = ["Math", "Science", "English"];
+// [name, math, science, english, attendance] from student_data.csv (null = missing)
+const RAW = [
+  ["Aarav",72,82,86,98],["Vivaan",null,61,60,78],["Aditya",79,68,81,95],["Vihaan",69,66,72,89],
+  ["Arjun",78,76,51,80],["Sai",75,71,69,87],["Ayaan",53,56,52,62],["Krishna",66,62,70,84],
+  ["Ishaan",70,54,76,79],["Shaurya",null,73,82,94],["Ananya",74,91,86,99],["Aadhya",56,76,76,88],
+  ["Diya",null,74,60,67],["Saanvi",82,55,65,83],["Priya",71,75,84,100],["Neha",45,52,59,60],
+  ["Riya",79,85,81,94],["Kriti",75,72,81,87],["Pooja",71,68,87,93],["Kavya",null,82,72,99],
+  ["Rahul",78,70,82,94],["Rohan",73,85,56,73],["Amit",57,51,65,74],["Karan",71,66,80,91],
+  ["Vikram",93,74,77,98],["Sneha",43,37,60,61],["Nidhi",37,50,63,65],["Tanvi",67,75,72,87],
+  ["Rashi",44,36,55,60],["Meera",81,79,74,98]
+];
+
+const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const sampleStd = a => { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)); };
+const popStd = a => { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length); };
+function pearson(x, y) {
+  const mx = mean(x), my = mean(y);
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < x.length; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; }
+  return sxy / Math.sqrt(sxx * syy);
+}
+function linfit(x, y) {
+  const mx = mean(x), my = mean(y);
+  let sxy = 0, sxx = 0;
+  for (let i = 0; i < x.length; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; }
+  const m = sxy / sxx;
+  return { m, c: my - m * mx };
+}
+function cosineMatrix(X) {
+  const U = X.map(r => { const n = Math.hypot(...r) || 1; return r.map(v => v / n); });
+  return U.map(a => U.map(b => a.reduce((s, v, k) => s + v * b[k], 0)));
+}
+// Same greedy rule as make_pairs(): take the most similar unpaired pair, repeat.
+function greedyPairs(S) {
+  const n = S.length, cand = [];
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) cand.push({ sim: S[i][j], i, j });
+  cand.sort((a, b) => b.sim - a.sim || b.i - a.i || b.j - a.j);
+  const used = new Set(), pairs = [];
+  for (const c of cand) if (!used.has(c.i) && !used.has(c.j)) { pairs.push(c); used.add(c.i); used.add(c.j); }
+  return pairs;
+}
+function buildModel(raw) {
+  const fill = Math.round(mean(raw.filter(r => r[1] !== null).map(r => r[1])) * 10) / 10;
+  const students = raw.map((r, id) => {
+    const marks = [r[1] ?? fill, r[2], r[3]];
+    return { id, name: r[0], marks, filled: [r[1] === null, false, false], att: r[4],
+             overall: Math.round(mean(marks) * 100) / 100 };
+  });
+  const X = students.map(s => s.marks);
+  const mu = [0, 1, 2].map(k => mean(X.map(r => r[k])));
+  const sd = [0, 1, 2].map(k => popStd(X.map(r => r[k])));
+  const Z = X.map(r => r.map((v, k) => (v - mu[k]) / sd[k]));
+  const Sraw = cosineMatrix(X), S = cosineMatrix(Z);
+  const pairs = greedyPairs(S);
+  pairs.forEach((p, k) => {
+    for (const [a, b] of [[p.i, p.j], [p.j, p.i]]) Object.assign(students[a], { buddy: b, pairSim: p.sim, pairNo: k });
+  });
+  const byOverall = [...students].sort((a, b) => b.overall - a.overall);
+  byOverall.forEach((s, k) => { s.rank = k + 1; });
+  students.forEach((s, i) => { s.z = Z[i]; });
+  return { students, fill, Sraw, S, pairs };
+}
+// MODEL END
+
+const M = buildModel(RAW);
+const N = M.students.length;
+const DEFAULTS = { minAtt: 60, pass: 40, aMark: 80 };
+const state = { ...DEFAULTS, selected: 0, sim: "z", order: "pairs", sortKey: "overall", sortDir: -1, query: "" };
+const $ = id => document.getElementById(id);
+const pct = (p, d = 0) => (p * 100).toFixed(d) + "%";
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const inBand = s => s.att >= state.minAtt;
+const band = () => M.students.filter(inBand);
+
+// Theme tokens
+let T = {};
+function readTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = n => cs.getPropertyValue("--" + n).trim();
+  T = { ink: g("ink"), ink2: g("ink-2"), rule: g("rule"), ruleSoft: g("rule-soft"), red: g("red"), hl: g("hl"),
+        card: g("card"), paper: g("paper"), subj: [g("math"), g("sci"), g("eng")],
+        pos: g("heat-pos"), neg: g("heat-neg"), zero: g("heat-zero"), body: g("f-body") };
+}
+function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map(c => c + c).join(""); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+const alpha = (hex, a) => { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; };
+function mix(h1, h2, t) { const a = hexToRgb(h1), b = hexToRgb(h2); return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * t)).join(",")})`; }
+
+// Charts
+const charts = {};
+function chartDefaults() {
+  Chart.defaults.font.family = T.body;
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = T.ink2;
+  Chart.defaults.borderColor = T.ruleSoft;
+  Chart.defaults.animation = reduceMotion ? false : { duration: 300 };
+  Object.assign(Chart.defaults.plugins.tooltip, {
+    backgroundColor: T.ink, titleColor: T.paper, bodyColor: T.paper, padding: 10, cornerRadius: 6,
+    displayColors: false, titleFont: { weight: "700" }
+  });
+}
+
+function buildScatter() {
+  const pt = ctx => M.students[ctx.raw?.id];
+  charts.scatter = new Chart($("scatter"), {
+    type: "scatter",
+    data: { datasets: [
+      { label: "Students", data: M.students.map(s => ({ x: s.att, y: s.overall, id: s.id })), order: 1,
+        pointRadius: c => { const s = pt(c); return s && s.id === state.selected ? 9 : 6; },
+        pointHoverRadius: 9,
+        backgroundColor: c => { const s = pt(c); if (!s) return T.ink; if (s.id === state.selected) return T.hl; return inBand(s) ? alpha(T.ink, 0.85) : alpha(T.ink2, 0.18); },
+        borderColor: c => { const s = pt(c); if (!s) return T.ink; if (s.id === state.selected) return T.red; return inBand(s) ? T.card : alpha(T.ink2, 0.35); },
+        borderWidth: c => { const s = pt(c); return s && s.id === state.selected ? 3 : 1.5; } },
+      { type: "line", label: "Best fit", data: [], borderColor: T.red, borderWidth: 2, borderDash: [7, 5], pointRadius: 0, order: 0 }
+    ] },
+    options: {
+      maintainAspectRatio: false,
+      scales: {
+        x: { min: 58, max: 102, title: { display: true, text: "Attendance (%)" }, grid: { color: T.ruleSoft } },
+        y: { min: 40, max: 95, title: { display: true, text: "Overall average" }, grid: { color: T.ruleSoft } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { filter: i => i.datasetIndex === 0, callbacks: {
+          title: i => M.students[i[0].raw.id].name,
+          label: i => { const s = M.students[i.raw.id]; return [`Attendance ${s.att}%`, `Overall ${s.overall.toFixed(1)}`, `M/S/E ${s.marks.map(v => Math.trunc(v)).join(" / ")}`]; } } }
+      },
+      onClick: (e, els) => { const p = els.find(x => x.datasetIndex === 0); if (p) select(charts.scatter.data.datasets[0].data[p.index].id); },
+      onHover: (e, els) => { e.native.target.style.cursor = els.some(x => x.datasetIndex === 0) ? "pointer" : "default"; }
+    }
+  });
+}
+
+function jitter(id) { return (((id * 37) % 13) - 6) / 24; }
+function buildStrip() {
+  const ds = SUBJECTS.map((sub, k) => ({
+    label: sub, subj: k,
+    data: M.students.map(s => ({ x: s.marks[k], y: k + jitter(s.id), id: s.id })),
+    pointRadius: c => (c.raw && c.raw.id === state.selected ? 8 : 5),
+    backgroundColor: c => { const s = M.students[c.raw?.id]; if (!s) return T.subj[k]; if (s.id === state.selected) return T.hl; return inBand(s) ? alpha(T.subj[k], 0.75) : alpha(T.ink2, 0.12); },
+    borderColor: c => { const s = M.students[c.raw?.id]; if (!s) return T.subj[k]; if (s.id === state.selected) return T.red; return inBand(s) ? T.subj[k] : "transparent"; },
+    borderWidth: c => (c.raw && c.raw.id === state.selected ? 3 : 1)
+  }));
+  ds.push({ label: "Class mean", kind: "mean", data: [], pointStyle: "line", rotation: 90, pointRadius: 17, pointHoverRadius: 17, borderWidth: 4, borderColor: T.ink, backgroundColor: T.ink });
+  ds.push({ type: "line", label: "Pass mark", kind: "line", data: [], borderColor: T.red, borderDash: [6, 4], borderWidth: 2, pointRadius: 0 });
+  ds.push({ type: "line", label: "A grade", kind: "line", data: [], borderColor: T.ink2, borderDash: [6, 4], borderWidth: 2, pointRadius: 0 });
+  charts.strip = new Chart($("strip"), {
+    type: "scatter",
+    data: { datasets: ds },
+    options: {
+      maintainAspectRatio: false,
+      scales: {
+        x: { min: 30, max: 100, title: { display: true, text: "Mark" }, grid: { color: T.ruleSoft } },
+        y: { min: -0.6, max: 2.6, reverse: true, grid: { display: false }, afterBuildTicks: ax => { ax.ticks = [0, 1, 2].map(v => ({ value: v })); },
+             ticks: { callback: v => SUBJECTS[v] ?? "", font: { size: 13, weight: "700" }, color: T.ink } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { filter: i => i.dataset.kind !== "line", callbacks: {
+          title: i => i[0].dataset.kind === "mean" ? `${SUBJECTS[i[0].dataIndex]} mean` : M.students[i[0].raw.id].name,
+          label: i => i.dataset.kind === "mean" ? i.raw.x.toFixed(1) : `${i.dataset.label}: ${i.raw.x}${M.students[i.raw.id].filled[i.dataset.subj] ? " (filled with class mean)" : ""}` } }
+      },
+      onClick: (e, els) => { const p = els.find(x => x.datasetIndex < 3); if (p) select(charts.strip.data.datasets[p.datasetIndex].data[p.index].id); },
+      onHover: (e, els) => { e.native.target.style.cursor = els.some(x => x.datasetIndex < 3) ? "pointer" : "default"; }
+    }
+  });
+}
+
+function buildProb() {
+  charts.prob = new Chart($("prob"), {
+    type: "bar",
+    data: { labels: SUBJECTS, datasets: [
+      { label: "Pass", data: [], backgroundColor: T.subj.map(c => alpha(c, 0.3)), borderColor: T.subj, borderWidth: 1.5, borderRadius: 6 },
+      { label: "A grade", data: [], backgroundColor: T.subj, borderColor: T.subj, borderWidth: 1.5, borderRadius: 6 }
+    ] },
+    options: {
+      maintainAspectRatio: false,
+      layout: { padding: { top: 22 } },
+      scales: { y: { min: 0, max: 1, ticks: { callback: v => pct(v), stepSize: 0.25 }, grid: { color: T.ruleSoft } }, x: { grid: { display: false }, ticks: { color: T.ink, font: { weight: "700", size: 13 } } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        title: i => i[0].label,
+        label: i => { const b = band(); const k = i.dataIndex; const thr = i.datasetIndex === 0 ? state.pass : state.aMark;
+          const c = b.filter(s => s.marks[k] >= thr).length;
+          return `${i.datasetIndex === 0 ? "Pass" : "A grade"} (${thr}+): ${pct(i.raw, 1)}, ${c} of ${b.length}`; } } } }
+    },
+    plugins: [{ id: "barLabels", afterDatasetsDraw(chart) {
+      const { ctx } = chart; ctx.save(); ctx.font = `700 12px ${T.body}`; ctx.fillStyle = T.ink; ctx.textAlign = "center";
+      chart.data.datasets.forEach((d, di) => chart.getDatasetMeta(di).data.forEach((bar, k) => { const v = d.data[k]; if (v != null) ctx.fillText(pct(v), bar.x, bar.y - 6); }));
+      ctx.restore();
+    } }]
+  });
+}
+
+function buildCharts() {
+  readTokens();
+  chartDefaults();
+  Object.values(charts).forEach(c => c.destroy());
+  buildScatter(); buildStrip(); buildProb();
+  renderAll();
+}
+
+// Rendering
+function renderControls() {
+  $("o-att").textContent = state.minAtt + "%";
+  $("o-pass").textContent = state.pass;
+  $("o-a").textContent = state.aMark;
+  const n = band().length;
+  $("band-note").textContent = n === N ? `Showing all ${N} students` : `Showing ${n} of ${N} students`;
+}
+
+function renderFinding() {
+  const b = band();
+  const ds = charts.scatter.data.datasets;
+  if (b.length < 3) {
+    $("r-value").innerHTML = "<small>r =</small>&mdash;";
+    $("r-note").textContent = "";
+    $("finding-lede").textContent = "Too few students in this attendance band to measure a correlation. Lower the attendance filter.";
+    ds[1].data = [];
+  } else {
+    const x = b.map(s => s.att), y = b.map(s => s.overall);
+    const r = pearson(x, y), { m, c } = linfit(x, y);
+    const strength = Math.abs(r) >= 0.7 ? "strong" : Math.abs(r) >= 0.4 ? "moderate" : "weak";
+    $("r-value").innerHTML = `<small>r =</small>${r.toFixed(2)}`;
+    $("r-note").textContent = strength + (strength === "strong" ? "!" : "");
+    $("finding-title").textContent = r >= 0.4 ? "Students who attend more score more" : "Attendance and marks barely move together here";
+    $("finding-lede").textContent = `Across ${b.length} students, each extra percentage point of attendance goes with about ${m.toFixed(2)} more marks on the overall average (best fit y = ${m.toFixed(2)}x ${c < 0 ? "−" : "+"} ${Math.abs(c).toFixed(1)}).`;
+    const x0 = Math.min(...x), x1 = Math.max(...x);
+    ds[1].data = [{ x: x0, y: m * x0 + c }, { x: x1, y: m * x1 + c }];
+  }
+  charts.scatter.update();
+}
+
+function renderStudent() {
+  const s = M.students[state.selected];
+  $("pick").value = s.id;
+  $("s-name").textContent = s.name;
+  $("s-meta").textContent = `${s.att}% attendance${inBand(s) ? "" : " (outside the current filter)"}`;
+  $("s-marks").innerHTML = s.marks.map((v, k) => {
+    const fail = v < state.pass, a = v >= state.aMark;
+    return `<div class="mark">
+      <div class="subj"><i style="background:${T.subj[k]}"></i>${SUBJECTS[k]}</div>
+      <span class="val${fail ? " fail" : ""}">${Number.isInteger(v) ? v : v.toFixed(1)}</span>
+      ${a ? '<span class="pen tag" aria-label="A grade">A</span>' : ""}
+      ${s.filled[k] ? '<span class="pen filled">filled with class mean</span>' : ""}
+    </div>`;
+  }).join("");
+  $("s-overall").textContent = s.overall.toFixed(2);
+  $("s-rank").textContent = `${s.rank} of ${N}`;
+  const hi = s.z.indexOf(Math.max(...s.z)), lo = s.z.indexOf(Math.min(...s.z));
+  const above = s.z.filter(v => v > 0).length;
+  const pos = above === 3 ? "Above the class average in every subject." : above === 0 ? "Below the class average in every subject." : `Above the class average in ${above} of 3 subjects.`;
+  $("s-profile").textContent = `${pos} Strongest in ${SUBJECTS[hi]} and weakest in ${SUBJECTS[lo]}, compared with classmates.`;
+  const b = M.students[s.buddy];
+  $("s-buddy").innerHTML = `<span class="muted">Study buddy</span> <button type="button" class="link-btn" data-go="${b.id}">${b.name}</button>
+    <span class="muted num">pair ${s.pairNo + 1} of 15, similarity ${s.pairSim.toFixed(3)}</span>`;
+}
+
+function renderOdds() {
+  const b = band(), n = b.length;
+  const sel = state.selected;
+  const rows = [
+    { what: `Passes all three subjects`, test: s => s.marks.every(v => v >= state.pass) },
+    { what: `Scores an A in at least one subject`, test: s => s.marks.some(v => v >= state.aMark) },
+    { what: `Overall average above ${state.aMark}`, test: s => s.overall > state.aMark }
+  ];
+  $("odds-list").innerHTML = rows.map(r => {
+    const hits = b.filter(r.test).length;
+    return `<div class="odd">
+      <div class="pct">${n ? pct(hits / n) : "—"}</div>
+      <div class="what">${r.what}</div>
+      <div class="tally" aria-hidden="true">${b.map(s => `<span class="${r.test(s) ? "on" : ""}${s.id === sel ? " sel" : ""}" title="${s.name}"></span>`).join("")}</div>
+      <div class="count">${hits} of ${n} students</div>
+    </div>`;
+  }).join("") + (() => {
+    const anyA = s => s.marks.some(v => v >= state.aMark);
+    const hi = M.students.filter(s => s.att >= 80), lo = M.students.filter(s => s.att < 80);
+    const h = hi.filter(anyA).length, l = lo.filter(anyA).length;
+    return `<p class="conditional">Does attendance change the odds? Of the <strong>${hi.length}</strong> students with 80%+ attendance,
+      <strong>${h}</strong> scored at least one A (${pct(h / hi.length)}). Below 80%, it was <strong>${l} of ${lo.length}</strong> (${pct(l / lo.length)}).</p>`;
+  })();
+
+  const pd = charts.prob.data.datasets;
+  pd[0].data = SUBJECTS.map((_, k) => n ? b.filter(s => s.marks[k] >= state.pass).length / n : null);
+  pd[1].data = SUBJECTS.map((_, k) => n ? b.filter(s => s.marks[k] >= state.aMark).length / n : null);
+  charts.prob.update();
+  $("prob-legend").innerHTML = `<span>Light bar: pass (${state.pass}+)</span><span>Solid bar: A grade (${state.aMark}+)</span>`;
+}
+
+function renderSpread() {
+  const b = band();
+  const ds = charts.strip.data.datasets;
+  ds[3].data = b.length ? SUBJECTS.map((_, k) => ({ x: mean(b.map(s => s.marks[k])), y: k })) : [];
+  ds[4].data = [{ x: state.pass, y: -0.55 }, { x: state.pass, y: 2.55 }];
+  ds[5].data = [{ x: state.aMark, y: -0.55 }, { x: state.aMark, y: 2.55 }];
+  charts.strip.update();
+
+  const cols = [...SUBJECTS.map((_, k) => b.map(s => s.marks[k])), b.map(s => s.overall)];
+  const names = [...SUBJECTS, "Overall"], dots = [...T.subj, T.ink];
+  const f = v => (isFinite(v) ? v.toFixed(2) : "—");
+  $("stats").innerHTML = `<thead><tr><th>Subject</th><th>Mean</th><th>Median</th><th>Std dev</th><th>Min</th><th>Max</th></tr></thead><tbody>` +
+    cols.map((c, k) => c.length ? `<tr><td><span class="dot" style="background:${dots[k]}"></span>${names[k]}</td><td>${f(mean(c))}</td><td>${f(median(c))}</td><td>${c.length > 1 ? f(sampleStd(c)) : "—"}</td><td>${f(Math.min(...c))}</td><td>${f(Math.max(...c))}</td></tr>` : "").join("") +
+    `</tbody>`;
+}
+
+// Heatmap
+let heatGeom = null;
+function heatOrder() { return state.order === "pairs" ? M.pairs.flatMap(p => [p.i, p.j]) : M.students.map(s => s.id); }
+function heatColor(v) { return v >= 0 ? mix(T.zero, T.pos, Math.min(v, 1)) : mix(T.zero, T.neg, Math.min(-v, 1)); }
+function drawHeatmap() {
+  const cv = $("heat"), wrap = $("heat-wrap");
+  const W = wrap.clientWidth; if (!W) return;
+  const order = heatOrder(), S = state.sim === "z" ? M.S : M.Sraw;
+  const lab = W < 480 ? 50 : 62, cell = (W - lab) / N, H = lab + cell * N;
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + "px";
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  const fs = Math.max(8, Math.min(11, cell * 0.95));
+  ctx.font = `${fs}px ${T.body}`; ctx.textBaseline = "middle";
+  order.forEach((a, r) => order.forEach((b, c) => {
+    ctx.fillStyle = heatColor(S[a][b]);
+    ctx.fillRect(lab + c * cell, lab + r * cell, Math.ceil(cell), Math.ceil(cell));
+  }));
+  if (state.order === "pairs") {
+    ctx.strokeStyle = T.ink; ctx.lineWidth = 1;
+    for (let k = 0; k < N; k += 2) ctx.strokeRect(lab + k * cell + 0.5, lab + k * cell + 0.5, cell * 2 - 1, cell * 2 - 1);
+  }
+  const selPos = order.indexOf(state.selected);
+  ctx.strokeStyle = T.red; ctx.lineWidth = 2;
+  ctx.strokeRect(lab, lab + selPos * cell, cell * N, cell);
+  ctx.strokeRect(lab + selPos * cell, lab, cell, cell * N);
+  order.forEach((id, k) => {
+    const s = M.students[id], isSel = id === state.selected;
+    ctx.fillStyle = isSel ? T.red : T.ink2; ctx.font = `${isSel ? "700 " : ""}${fs}px ${T.body}`;
+    ctx.textAlign = "right"; ctx.fillText(s.name, lab - 4, lab + k * cell + cell / 2);
+    ctx.save(); ctx.translate(lab + k * cell + cell / 2, lab - 4); ctx.rotate(-Math.PI / 2); ctx.textAlign = "left"; ctx.fillText(s.name, 0, 0); ctx.restore();
+  });
+  heatGeom = { lab, cell, order, S };
+  const off = []; for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (i !== j) off.push(S[i][j]);
+  const lo = Math.min(...off), hi = Math.max(...off);
+  $("heat-msg").innerHTML = state.sim === "raw"
+    ? `<strong>Raw marks:</strong> similarity runs only from ${lo.toFixed(3)} to ${hi.toFixed(3)}. All marks are positive and close together, so every vector points the same way and the ranking is useless for matching.`
+    : `<strong>Standardised marks:</strong> similarity runs from ${lo.toFixed(3)} to ${hi.toFixed(3)}. Each mark becomes "above or below the class" in that subject, so opposite profiles show up in red.`;
+}
+function heatHit(e) {
+  if (!heatGeom) return null;
+  const r = $("heat").getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const { lab, cell, order } = heatGeom;
+  const c = Math.floor((x - lab) / cell), rr = Math.floor((y - lab) / cell);
+  if (c < 0 || rr < 0 || c >= N || rr >= N) return null;
+  return { a: order[rr], b: order[c], x, y };
+}
+
+function renderPairs() {
+  const avg = mean(M.pairs.map(p => p.sim));
+  $("pair-avg").textContent = `average ${avg.toFixed(3)}`;
+  $("pairs").innerHTML = M.pairs.map(p => {
+    const A = M.students[p.i], B = M.students[p.j];
+    const on = state.selected === p.i || state.selected === p.j;
+    return `<li><button type="button" data-go="${p.i}" class="${on ? "on" : ""}${p.sim < 0.5 ? " weak" : ""}" aria-label="${A.name} and ${B.name}, similarity ${p.sim.toFixed(3)}">
+      <span class="names">${A.name} + ${B.name}</span><span class="sim">${p.sim.toFixed(3)}</span>
+      <span class="meter"><i style="width:${Math.max(0, p.sim) * 100}%"></i></span></button></li>`;
+  }).join("");
+}
+
+// Roster
+const COLS = [
+  { key: "name", label: "Student" },
+  { key: "m0", label: "Math" }, { key: "m1", label: "Science" }, { key: "m2", label: "English" },
+  { key: "overall", label: "Overall" }, { key: "att", label: "Attendance" }, { key: "buddy", label: "Study buddy" }
+];
+function sortVal(s, key) {
+  if (key === "name") return s.name;
+  if (key === "buddy") return M.students[s.buddy].name;
+  if (key[0] === "m" && key.length === 2) return s.marks[+key[1]];
+  return s[key];
+}
+function renderTable() {
+  const q = state.query.trim().toLowerCase();
+  const rows = band().filter(s => !q || s.name.toLowerCase().includes(q))
+    .sort((a, b) => { const x = sortVal(a, state.sortKey), y = sortVal(b, state.sortKey); return (x < y ? -1 : x > y ? 1 : 0) * state.sortDir; });
+  const head = `<thead><tr>${COLS.map(c => {
+    const on = c.key === state.sortKey;
+    return `<th${on ? ` aria-sort="${state.sortDir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" data-sort="${c.key}"${on ? ' aria-sort="1"' : ""}>${c.label}${on ? (state.sortDir > 0 ? " ▲" : " ▼") : ""}</button></th>`;
+  }).join("")}</tr></thead>`;
+  const mark = (s, k) => {
+    const v = s.marks[k], txt = Number.isInteger(v) ? v : v.toFixed(1);
+    const cls = v < state.pass ? "cell-fail" : v >= state.aMark ? "cell-a" : "";
+    return `<td><span class="${cls}">${txt}</span>${s.filled[k] ? `<span class="dagger" title="Missing in the CSV, filled with the class mean ${M.fill}">&dagger;</span>` : ""}</td>`;
+  };
+  const body = rows.length ? rows.map(s => `<tr data-go="${s.id}" tabindex="0" class="${s.id === state.selected ? "sel" : ""}">
+      <td class="name">${s.name}</td>${mark(s, 0)}${mark(s, 1)}${mark(s, 2)}
+      <td><strong>${s.overall.toFixed(2)}</strong></td>
+      <td><span class="att-bar"><i style="width:${s.att}%"></i></span>${s.att}%</td>
+      <td>${M.students[s.buddy].name}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="empty">No students match. Clear the search or lower the attendance filter.</td></tr>`;
+  $("roster").innerHTML = head + `<tbody>${body}</tbody>`;
+}
+
+function renderAll() {
+  renderControls(); renderFinding(); renderStudent(); renderOdds(); renderSpread();
+  charts.strip.update(); drawHeatmap(); renderPairs(); renderTable();
+}
+function select(id) {
+  state.selected = +id;
+  charts.scatter.update("none"); charts.strip.update("none");
+  renderStudent(); renderOdds(); drawHeatmap(); renderPairs(); renderTable();
+}
+
+// Wiring
+$("pick").innerHTML = [...M.students].sort((a, b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+$("pick").addEventListener("change", e => select(e.target.value));
+[["f-att", "minAtt"], ["f-pass", "pass"], ["f-a", "aMark"]].forEach(([id, key]) =>
+  $(id).addEventListener("input", e => { state[key] = +e.target.value; renderAll(); }));
+$("reset").addEventListener("click", () => {
+  Object.assign(state, DEFAULTS);
+  $("f-att").value = DEFAULTS.minAtt; $("f-pass").value = DEFAULTS.pass; $("f-a").value = DEFAULTS.aMark;
+  renderAll();
+});
+$("q").addEventListener("input", e => { state.query = e.target.value; renderTable(); });
+document.addEventListener("click", e => {
+  const go = e.target.closest("[data-go]"); if (go) { select(go.dataset.go); return; }
+  const srt = e.target.closest("[data-sort]");
+  if (srt) { const k = srt.dataset.sort; state.sortDir = state.sortKey === k ? -state.sortDir : (k === "name" || k === "buddy" ? 1 : -1); state.sortKey = k; renderTable(); return; }
+  const seg = e.target.closest(".seg button");
+  if (seg) {
+    if (seg.dataset.sim) state.sim = seg.dataset.sim; else state.order = seg.dataset.order;
+    seg.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === seg));
+    drawHeatmap();
+  }
+});
+$("roster").addEventListener("keydown", e => { const tr = e.target.closest("tr[data-go]"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(tr.dataset.go); } });
+
+const tip = $("heat-tip");
+$("heat").addEventListener("mousemove", e => {
+  const h = heatHit(e);
+  if (!h) { tip.hidden = true; return; }
+  const A = M.students[h.a], B = M.students[h.b];
+  tip.textContent = h.a === h.b ? A.name : `${A.name} & ${B.name}: ${heatGeom.S[h.a][h.b].toFixed(3)}`;
+  tip.style.left = h.x + "px"; tip.style.top = h.y + "px"; tip.hidden = false;
+});
+$("heat").addEventListener("mouseleave", () => { tip.hidden = true; });
+$("heat").addEventListener("click", e => { const h = heatHit(e); if (h) select(h.a); });
+
+new ResizeObserver(() => drawHeatmap()).observe($("heat-wrap"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", buildCharts);
+new MutationObserver(buildCharts).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+document.fonts && document.fonts.ready.then(() => drawHeatmap());
+buildCharts();
+</script>
+</body>
+</html>

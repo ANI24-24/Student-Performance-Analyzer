@@ -1,0 +1,16 @@
+Pair,Student A,A (M/S/E),Student B,B (M/S/E),Cosine Similarity
+1,Amit,57 / 51 / 65,Sneha,43 / 37 / 60,0.994
+2,Kavya,67 / 82 / 72,Tanvi,67 / 75 / 72,0.993
+3,Aditya,79 / 68 / 81,Rahul,78 / 70 / 82,0.989
+4,Pooja,71 / 68 / 87,Karan,71 / 66 / 80,0.98
+5,Shaurya,67 / 73 / 82,Priya,71 / 75 / 84,0.98
+6,Neha,45 / 52 / 59,Nidhi,37 / 50 / 63,0.973
+7,Aarav,72 / 82 / 86,Ananya,74 / 91 / 86,0.973
+8,Diya,67 / 74 / 60,Rohan,73 / 85 / 56,0.932
+9,Krishna,66 / 62 / 70,Rashi,44 / 36 / 55,0.921
+10,Riya,79 / 85 / 81,Meera,81 / 79 / 74,0.912
+11,Vivaan,67 / 61 / 60,Ayaan,53 / 56 / 52,0.861
+12,Vihaan,69 / 66 / 72,Ishaan,70 / 54 / 76,0.852
+13,Sai,75 / 71 / 69,Vikram,93 / 74 / 77,0.831
+14,Arjun,78 / 76 / 51,Saanvi,82 / 55 / 65,0.417
+15,Aadhya,56 / 76 / 76,Kriti,75 / 72 / 81,0.073
